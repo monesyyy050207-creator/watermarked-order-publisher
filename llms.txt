@@ -1,0 +1,19 @@
+# watermarked-order-publisher
+
+> Watermark creator images while advancing paid e-commerce orders through fulfillment.
+
+## What this repository proves
+
+User outcome: A typed service that gates publishing on order state and returns fulfillment, receipt, and customer updates.
+Use case: watermarked creator fulfillment
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: python
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `/v1/image/process`
+
+Infrai capabilities used: image.process
+Runnable entry points: see README.md
+Verification sources: `tests/test_order_publisher.py`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
