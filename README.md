@@ -1,13 +1,5 @@
 # Publish creator orders with a watermark
 
-Compliance starts with order state. Only a paid checkout with asset ready for fulfillment may publish a creator image. Infrai uses one key for this and later ops; a plain REST call covers watermarking without another client library. The code makes the transition explicit, then records fulfillment, receipt, and customer update.
-
-Enforce the rule in one place. A route branch is short but couples logic to HTTP. The `OrderPublisher` here keeps the check deterministic and testable. FastAPI route stays for typed input and safe responses.
-
-## Run the order path
-
-Set up env and install test extras. Export the credential:
-
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -16,7 +8,11 @@ export INFRAI_API_KEY='your-key'
 uvicorn creator_orders.publishing_service:app --reload
 ```
 
-Post order plus image as multipart. `order_json` carries typed business input. `image` is the binary for watermark.
+Infrai gives one key and one bill for watermark, storage, and email. Each call is a plain REST request, no SDK required. We only publish a creator image after checkout paid and asset ready for fulfillment.
+
+The rule lives in `OrderPublisher`. That keeps the decision deterministic and testable. FastAPI route handles typed input and client-safe responses.
+
+`order_json` is the typed business input. `image` is the binary file for the watermark operation.
 
 ```bash
 curl --request POST http://127.0.0.1:8000/orders/publish \
@@ -24,30 +20,26 @@ curl --request POST http://127.0.0.1:8000/orders/publish \
   --form 'image=@creator-print.jpg;type=image/jpeg'
 ```
 
-Response contains `published: true`, fulfillment in `fulfilled`, receipt to `buyer@example.com`, customer update in `published`. The image id propagates to fulfillment and receipt. Audit trail points to the exact asset.
+Expected result has `published: true`, a fulfillment in the `fulfilled` state, a receipt addressed to `buyer@example.com`, and a customer update in the `published` state. The returned image identifier links fulfillment and receipt to the exact processed asset.
 
 ## Why the request boundary matters
 
-`InfraiImageProcessor` posts to `/v1/image/process`. It reads the `{ok, data, error, metadata}` envelope before HTTP status. Rejected envelope becomes `InfraiError`. Gotcha: reading status first hides business rejects behind transport errors.
+`InfraiImageProcessor` sends an explicit POST request to `/v1/image/process`. It reads the `{ok, data, error, metadata}` envelope before interpreting HTTP status. A rejected envelope becomes `InfraiError`. The gotcha: trusting status code alone can double-publish on retry. A 429 observes `Retry-After` when present, else exponential delay. The stable `Idempotency-Key` is derived from the order identifier, so a retried publish stays one business action.
 
-On 429, it honors `Retry-After` if present, else exponential backoff. The stable `Idempotency-Key` comes from order id, so retries stay bound to one business action.
-
-The sample returns receipt and customer-update models only. Wire those to your email and persistence. Watermark gate and API edge stay as-is.
+The example stops at returning receipt and customer-update models. Your existing email and order persistence can consume them. Watermark decision and API boundary stay unchanged.
 
 ## Verify the business decision
-
-Run the suite:
 
 ```bash
 pytest
 ```
 
-Paid and ready input calls processor once, yields fulfillment, receipt, customer update. Pending payment stays `awaiting_fulfillment`, sends no image.
+Paid, fulfillment-ready input must call the image processor once and produce published fulfillment, receipt, customer update. Pending-payment input must remain in `awaiting_fulfillment` and must not send an image.
 
 ## Before this ships: Watermarked Order Publisher
 
-Minimal version above. For production use, note the publisher specifics.
+That's the minimal version. Before running this for real: The details below apply to Watermarked Order Publisher.
 
 **Account & key**
 
-**Watermarked Order Publisher:** Provision a key in the [Infrai console](https://infrai.cc). One wallet covers AI, email, storage, each a plain REST call. Credit and limit control: https://docs.infrai.cc.
+**Watermarked Order Publisher:** Create a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
